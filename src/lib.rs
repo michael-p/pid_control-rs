@@ -20,7 +20,7 @@
 
 pub mod util;
 
-use core::f64;
+use core::f64::{self, consts::PI};
 
 /// A generic controller interface.
 ///
@@ -112,6 +112,8 @@ pub struct PIDController {
     err_sum: f64,
     prev_value: f64,
     prev_error: f64,
+
+    angular_measurements: bool,
 }
 
 impl PIDController {
@@ -135,7 +137,14 @@ impl PIDController {
             out_max: f64::INFINITY,
 
             d_mode: DerivativeMode::OnMeasurement,
+            angular_measurements: false,
         }
+    }
+
+    pub fn new_with_angular_measurements(p_gain: f64, i_gain: f64, d_gain: f64) -> PIDController {
+        let mut pid = Self::new(p_gain, i_gain, d_gain);
+        pid.angular_measurements = true;
+        pid
     }
 
     /// Convenience function to set `i_min`/`i_max` and `out_min`/`out_max`
@@ -158,7 +167,19 @@ impl Controller for PIDController {
     }
 
     fn update(&mut self, value: f64, delta_t: f64) -> f64 {
-        let error = self.target - value;
+        let mut error = self.target - value;
+
+        if self.angular_measurements {
+            while error <= -PI {
+                error += 2.0 * PI;
+                self.err_sum = 0.0;
+            }
+            while error > PI {
+                error -= 2.0 * PI;
+                self.err_sum = 0.0;
+            }
+            debug_assert!(error > -PI && error <= PI);
+        }
 
         // PROPORTIONAL
         let p_term = self.p_gain * error;
